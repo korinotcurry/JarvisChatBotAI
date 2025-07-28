@@ -1,0 +1,311 @@
+﻿@{
+    ViewData["Title"] = "Jarvis";
+    var chatLog = ViewBag.ChatLog as List<string>;
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Jarvis</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            font-size: 72px;
+            font-weight: bold;
+            height: 100px;
+            line-height: 100px;
+        }
+
+            .header span {
+                color: #9f0000;
+            }
+
+        .chat-box {
+            width: 95%;
+            max-width: 1000px;
+            height: 60vh;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            font-size: 20px;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .chat-line {
+            margin: 10px 0;
+            display: flex;
+        }
+
+        .user-message {
+            padding: 12px 18px;
+            border-radius: 20px;
+            max-width: 70%;
+            word-wrap: break-word;
+            background-color: white;
+            color: blue;
+            align-self: flex-end;
+            margin-left: auto;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .bot-message {
+            padding: 12px 18px;
+            border-radius: 20px;
+            max-width: 70%;
+            word-wrap: break-word;
+            background-color: white;
+            color: #9f0000;
+            align-self: flex-start;
+            margin-right: auto;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .empty-message {
+            margin: auto;
+            font-size: 24px;
+            color: #999;
+            text-align: center;
+        }
+
+        .input-area {
+            width: 95%;
+            max-width: 1000px;
+            margin: 20px auto 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .admin-code-input {
+            width: 100%;
+            padding: 12px 18px;
+            font-size: 18px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+        }
+
+            .input-wrapper input[type="text"] {
+                flex: 1;
+                padding: 15px;
+                font-size: 20px;
+                border-radius: 5px;
+                border: 1px solid #ccc;
+            }
+
+            .input-wrapper button {
+                padding: 15px 25px;
+                font-size: 18px;
+                cursor: pointer;
+                border-radius: 5px;
+            }
+
+        .clear-button {
+            background-color: darkred;
+            color: white;
+            border: none;
+        }
+
+        .send-button {
+            background-color: black;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">J<span>a</span>rvis</div>
+
+    <div class="chat-box" id="chatBox">
+        @if (chatLog != null && chatLog.Count > 0)
+        {
+            foreach (var line in chatLog)
+            {
+                if (line.StartsWith("Sen:"))
+                {
+                    <div class="chat-line">
+                        <div class="user-message">@line.Substring(4)</div>
+                    </div>
+                }
+                else if (line.StartsWith("Jarvis:"))
+                {
+                    <div class="chat-line">
+                        <div class="bot-message">@line.Substring(7)</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="chat-line">@line</div>
+                }
+            }
+        }
+        else
+        {
+            <div class="empty-message">Jarvis uyuyor...</div>
+        }
+    </div>
+
+    <div class="input-area">
+        <div style="width: 100%; position: relative;">
+            <input type="text" id="adminCode" class="admin-code-input" placeholder="Admin Özel Kod :" oninput="validateAdminCode()" />
+            <span id="adminStatusIcon" style="position:absolute; right: 15px; top: 50%; transform: translateY(-50%); font-size: 22px;"></span>
+        </div>
+        <p id="adminWarning" style="color: red; margin-top: 5px; display: none;">Lütfen geçerli bir Admin kodu giriniz. <strong>-Jarvis</strong></p>
+
+        <div class="input-wrapper">
+            <input type="text" id="txtMessage" name="userInput" placeholder="Mesajınızı yazın..." required />
+            <button type="button" class="send-button" id="sendButton" onclick="sendMessage()">Gönder</button>
+            <button type="button" class="clear-button" id="clearButton" onclick="clearChat()">Yeni Sohbet</button>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const txtMessage = document.getElementById("txtMessage");
+            const adminCode = document.getElementById("adminCode").value;
+            const message = txtMessage.value;
+
+            if (!message.trim()) {
+                alert("Boş mesaj gönderilemez!");
+                return;
+            }
+
+            const originalText = message;
+
+            disableInputs();
+            txtMessage.disabled = true;
+            txtMessage.value = "Jarvis düşünüyor...";
+
+            try {
+                const response = await fetch('/Chat/Send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userInput: originalText, adminCode: adminCode })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    appendMessage("user", result.user);
+                    appendMessage("bot", result.bot);
+                } else {
+                    alert("Hata: " + await response.text());
+                }
+            } catch (error) {
+                alert("Sunucuya bağlanılamadı.");
+                console.error(error);
+            }
+
+            enableInputs();
+            txtMessage.disabled = false;
+            txtMessage.value = "";
+            txtMessage.focus();
+        }
+
+        async function clearChat() {
+            disableInputs();
+            try {
+                const response = await fetch('/Chat/Clear', { method: 'POST' });
+                if (response.ok) {
+                    document.getElementById("chatBox").innerHTML = '<div class="empty-message">Jarvis uyuyor...</div>';
+                }
+            } catch {
+                alert("Temizleme işlemi başarısız.");
+            }
+            enableInputs();
+        }
+
+        function appendMessage(type, text) {
+            const chatBox = document.getElementById("chatBox");
+            const emptyMsg = chatBox.querySelector(".empty-message");
+            if (emptyMsg) emptyMsg.remove();
+
+            const line = document.createElement("div");
+            line.className = "chat-line";
+
+            const bubble = document.createElement("div");
+            bubble.className = type === "user" ? "user-message" : "bot-message";
+            bubble.textContent = text;
+
+            line.appendChild(bubble);
+            chatBox.appendChild(line);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function disableInputs() {
+            document.getElementById("sendButton").disabled = true;
+            document.getElementById("clearButton").disabled = true;
+            document.getElementById("txtMessage").disabled = true;
+            document.getElementById("adminCode").disabled = true;
+
+            document.getElementById("sendButton").textContent = "Gönderiliyor...";
+            document.getElementById("clearButton").textContent = "Bekleyiniz...";
+        }
+
+        function enableInputs() {
+            document.getElementById("sendButton").disabled = false;
+            document.getElementById("clearButton").disabled = false;
+            document.getElementById("txtMessage").disabled = false;
+            document.getElementById("adminCode").disabled = false;
+
+            document.getElementById("sendButton").textContent = "Gönder";
+            document.getElementById("clearButton").textContent = "Yeni Sohbet";
+        }
+
+        async function validateAdminCode() {
+            const code = document.getElementById("adminCode").value;
+            const icon = document.getElementById("adminStatusIcon");
+            const warning = document.getElementById("adminWarning");
+
+            if (code.trim() === "") {
+                icon.innerHTML = "";
+                warning.style.display = "none";
+                return;
+            }
+
+            const response = await fetch('/Chat/CheckAdminCode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'adminCode=' + encodeURIComponent(code)
+            });
+
+            const data = await response.json();
+            if (data.isValid) {
+                icon.innerHTML = "✅";
+                warning.style.display = "none";
+            } else {
+                icon.innerHTML = "❌";
+                warning.style.display = "block";
+            }
+        }
+
+        window.onload = enableInputs;
+    </script>
+</body>
+</html>
